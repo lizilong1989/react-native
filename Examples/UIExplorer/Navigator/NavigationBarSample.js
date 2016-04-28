@@ -14,19 +14,16 @@
 'use strict';
 
 
-var React = require('react-native');
+var React = require('react');
+var ReactNative = require('react-native');
 var {
-  PixelRatio,
   Navigator,
   ScrollView,
   StyleSheet,
   Text,
   TouchableHighlight,
   TouchableOpacity,
-  View,
-} = React;
-
-var cssVar = require('cssVar');
+} = ReactNative;
 
 class NavButton extends React.Component {
   render() {
@@ -51,12 +48,11 @@ var NavigationBarRouteMapper = {
     var previousRoute = navState.routeStack[index - 1];
     return (
       <TouchableOpacity
-        onPress={() => navigator.pop()}>
-        <View style={styles.navBarLeftButton}>
-          <Text style={[styles.navBarText, styles.navBarButtonText]}>
-            {previousRoute.title}
-          </Text>
-        </View>
+        onPress={() => navigator.pop()}
+        style={styles.navBarLeftButton}>
+        <Text style={[styles.navBarText, styles.navBarButtonText]}>
+          {previousRoute.title}
+        </Text>
       </TouchableOpacity>
     );
   },
@@ -64,12 +60,11 @@ var NavigationBarRouteMapper = {
   RightButton: function(route, navigator, index, navState) {
     return (
       <TouchableOpacity
-        onPress={() => navigator.push(newRandomRoute())}>
-        <View style={styles.navBarRightButton}>
-          <Text style={[styles.navBarText, styles.navBarButtonText]}>
-            Next
-          </Text>
-        </View>
+        onPress={() => navigator.push(newRandomRoute())}
+        style={styles.navBarRightButton}>
+        <Text style={[styles.navBarText, styles.navBarButtonText]}>
+          Next
+        </Text>
       </TouchableOpacity>
     );
   },
@@ -167,7 +162,7 @@ var styles = StyleSheet.create({
   button: {
     backgroundColor: 'white',
     padding: 15,
-    borderBottomWidth: 1 / PixelRatio.get(),
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#CDCDCD',
   },
   buttonText: {
@@ -182,7 +177,7 @@ var styles = StyleSheet.create({
     marginVertical: 10,
   },
   navBarTitleText: {
-    color: cssVar('fbui-bluegray-60'),
+    color: '#373E4D',
     fontWeight: '500',
     marginVertical: 9,
   },
@@ -193,7 +188,7 @@ var styles = StyleSheet.create({
     paddingRight: 10,
   },
   navBarButtonText: {
-    color: cssVar('fbui-accent-blue'),
+    color: '#5890FF',
   },
   scene: {
     flex: 1,

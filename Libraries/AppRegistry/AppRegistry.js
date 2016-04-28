@@ -11,7 +11,11 @@
  */
 'use strict';
 
-var invariant = require('invariant');
+var BatchedBridge = require('BatchedBridge');
+var BugReporting = require('BugReporting');
+var ReactNative = require('ReactNative');
+
+var invariant = require('fbjs/lib/invariant');
 var renderApplication = require('renderApplication');
 
 if (__DEV__) {
@@ -21,10 +25,13 @@ if (__DEV__) {
 }
 
 var runnables = {};
+var runCount = 1;
+
+type ComponentProvider = () => ReactClass<any>;
 
 type AppConfig = {
   appKey: string;
-  component: ReactClass<any, any, any>;
+  component?: ComponentProvider;
   run?: Function;
 };
 
@@ -34,6 +41,10 @@ type AppConfig = {
  * `AppRegistry.registerComponent`, then the native system can load the bundle
  * for the app and then actually run the app when it's ready by invoking
  * `AppRegistry.runApplication`.
+ *
+ * To "stop" an application when a view should be destroyed, call
+ * `AppRegistry.unmountApplicationComponentAtRootTag` with the tag that was
+ * pass into `runApplication`. These should always be used as a pair.
  *
  * `AppRegistry` should be `require`d early in the `require` sequence to make
  * sure the JS execution environment is setup before other modules are
@@ -46,12 +57,13 @@ var AppRegistry = {
       if (appConfig.run) {
         AppRegistry.registerRunnable(appConfig.appKey, appConfig.run);
       } else {
+        invariant(appConfig.component, 'No component provider passed in');
         AppRegistry.registerComponent(appConfig.appKey, appConfig.component);
       }
     }
   },
 
-  registerComponent: function(appKey: string, getComponentFunc: Function): string {
+  registerComponent: function(appKey: string, getComponentFunc: ComponentProvider): string {
     runnables[appKey] = {
       run: (appParameters) =>
         renderApplication(getComponentFunc(), appParameters.initialProps, appParameters.rootTag)
@@ -64,14 +76,20 @@ var AppRegistry = {
     return appKey;
   },
 
+  getAppKeys: function(): Array<string> {
+    return Object.keys(runnables);
+  },
+
   runApplication: function(appKey: string, appParameters: any): void {
-    console.log(
+    const msg =
       'Running application "' + appKey + '" with appParams: ' +
       JSON.stringify(appParameters) + '. ' +
       '__DEV__ === ' + String(__DEV__) +
       ', development-level warning are ' + (__DEV__ ? 'ON' : 'OFF') +
-      ', performance optimizations are ' + (__DEV__ ? 'OFF' : 'ON')
-    );
+      ', performance optimizations are ' + (__DEV__ ? 'OFF' : 'ON');
+    console.log(msg);
+    BugReporting.init();
+    BugReporting.addSource('AppRegistry.runApplication' + runCount++, () => msg);
     invariant(
       runnables[appKey] && runnables[appKey].run,
       'Application ' + appKey + ' has not been registered. This ' +
@@ -80,6 +98,16 @@ var AppRegistry = {
     );
     runnables[appKey].run(appParameters);
   },
+
+  unmountApplicationComponentAtRootTag: function(rootTag : number) {
+    ReactNative.unmountComponentAtNodeAndRemoveContainer(rootTag);
+  },
+
 };
+
+BatchedBridge.registerCallableModule(
+  'AppRegistry',
+  AppRegistry
+);
 
 module.exports = AppRegistry;

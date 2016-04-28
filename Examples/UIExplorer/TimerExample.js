@@ -15,30 +15,16 @@
  */
 'use strict';
 
-var React = require('react-native');
+var React = require('react');
+var ReactNative = require('react-native');
 var {
   AlertIOS,
-  StyleSheet,
-  Text,
-  TouchableHighlight,
+  Platform,
+  ToastAndroid,
   View,
-} = React;
+} = ReactNative;
 var TimerMixin = require('react-timer-mixin');
-
-var Button = React.createClass({
-  render: function() {
-    return (
-      <TouchableHighlight
-        onPress={this.props.onPress}
-        style={styles.button}
-        underlayColor="#eeeeee">
-        <Text>
-          {this.props.children}
-        </Text>
-      </TouchableHighlight>
-    );
-  },
-});
+var UIExplorerButton = require('./UIExplorerButton');
 
 var TimerTester = React.createClass({
   mixins: [TimerMixin],
@@ -52,9 +38,9 @@ var TimerTester = React.createClass({
   render: function() {
     var args = 'fn' + (this.props.dt !== undefined ? ', ' + this.props.dt : '');
     return (
-      <Button onPress={this._run}>
+      <UIExplorerButton onPress={this._run}>
         Measure: {this.props.type}({args}) - {this._ii || 0}
-      </Button>
+      </UIExplorerButton>
     );
   },
 
@@ -88,7 +74,11 @@ var TimerTester = React.createClass({
       var msg = 'Finished ' + this._ii + ' ' + this.props.type + ' calls.\n' +
         'Elapsed time: ' + e + ' ms\n' + (e / this._ii) + ' ms / iter';
       console.log(msg);
-      AlertIOS.alert(msg);
+      if (Platform.OS === 'ios') {
+        AlertIOS.alert(msg);
+      } else if (Platform.OS === 'android') {
+        ToastAndroid.show(msg, ToastAndroid.SHORT);
+      }
       this._start = 0;
       this.forceUpdate(() => { this._ii = 0; });
       return;
@@ -109,18 +99,6 @@ var TimerTester = React.createClass({
       this._iters = this._ii;
       this._run();
     }
-  },
-});
-
-var styles = StyleSheet.create({
-  button: {
-    borderColor: 'gray',
-    borderRadius: 8,
-    borderWidth: 1,
-    padding: 10,
-    margin: 5,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });
 
@@ -181,8 +159,12 @@ exports.examples = [
 
         render: function() {
           if (this.state.showTimer) {
-            var timer =
-              <TimerTester ref="interval" dt={25} type="setInterval" />;
+            var timer = [
+              <TimerTester ref="interval" dt={25} type="setInterval" />,
+              <UIExplorerButton onPress={() => this.refs.interval.clear() }>
+                Clear interval
+              </UIExplorerButton>
+            ];
             var toggleText = 'Unmount timer';
           } else {
             var timer = null;
@@ -190,13 +172,21 @@ exports.examples = [
           }
           return (
             <View>
-              {timer}
-              <Button onPress={() => this.refs.interval.clear() }>
+              {this.state.showTimer && this._renderTimer()}
+              <UIExplorerButton onPress={this._toggleTimer}>
+                {this.state.showTimer ? 'Unmount timer' : 'Mount new timer'}
+              </UIExplorerButton>
+            </View>
+          );
+        },
+
+        _renderTimer: function() {
+          return (
+            <View>
+              <TimerTester ref="interval" dt={25} type="setInterval" />
+              <UIExplorerButton onPress={() => this.refs.interval.clear() }>
                 Clear interval
-              </Button>
-              <Button onPress={this._toggleTimer}>
-                {toggleText}
-              </Button>
+              </UIExplorerButton>
             </View>
           );
         },

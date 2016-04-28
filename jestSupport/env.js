@@ -8,7 +8,15 @@
  */
 'use strict';
 
-window.__DEV__ = true;
-window.Env = {};
+require.requireActual('../packager/react-packager/src/Resolver/polyfills/babelHelpers.js');
 
-require.requireActual('./setupEnvPolyfills');
+global.__DEV__ = true;
+global.__fbBatchedBridgeConfig = {
+  remoteModuleConfig: [],
+  localModulesConfig: [],
+};
+
+global.Promise = require('promise');
+global.regeneratorRuntime = require.requireActual('regenerator/runtime');
+
+jest.setMock('ErrorUtils', require('ErrorUtils'));

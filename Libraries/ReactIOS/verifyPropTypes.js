@@ -12,18 +12,25 @@
 'use strict';
 
 var ReactNativeStyleAttributes = require('ReactNativeStyleAttributes');
-var View = require('View');
+
+export type ComponentInterface = ReactClass<any> | {
+  name?: string;
+  displayName?: string;
+  propTypes: Object;
+};
 
 function verifyPropTypes(
-  component: Function,
+  componentInterface: ComponentInterface,
   viewConfig: Object,
-  nativePropsToIgnore?: Object
+  nativePropsToIgnore?: ?Object
 ) {
   if (!viewConfig) {
     return; // This happens for UnimplementedView.
   }
-  var componentName = component.name || component.displayName;
-  if (!component.propTypes) {
+  var componentName = componentInterface.name ||
+    componentInterface.displayName ||
+    'unknown';
+  if (!componentInterface.propTypes) {
     throw new Error(
       '`' + componentName + '` has no propTypes defined`'
     );
@@ -31,15 +38,22 @@ function verifyPropTypes(
 
   var nativeProps = viewConfig.NativeProps;
   for (var prop in nativeProps) {
-    if (!component.propTypes[prop] &&
-        !View.propTypes[prop] &&
+    if (!componentInterface.propTypes[prop] &&
         !ReactNativeStyleAttributes[prop] &&
         (!nativePropsToIgnore || !nativePropsToIgnore[prop])) {
-      throw new Error(
-        '`' + componentName + '` has no propType for native prop `' +
+      var message;
+      if (componentInterface.propTypes.hasOwnProperty(prop)) {
+        message = '`' + componentName + '` has incorrectly defined propType for native prop `' +
+        viewConfig.uiViewClassName + '.' + prop + '` of native type `' + nativeProps[prop];
+      } else {
+        message = '`' + componentName + '` has no propType for native prop `' +
         viewConfig.uiViewClassName + '.' + prop + '` of native type `' +
-        nativeProps[prop] + '`'
-      );
+        nativeProps[prop] + '`';
+      };
+      message += '\nIf you haven\'t changed this prop yourself, this usually means that ' +
+        'your versions of the native code and JavaScript code are out of sync. Updating both ' +
+        'should make this error go away.';
+      throw new Error(message);
     }
   }
 }

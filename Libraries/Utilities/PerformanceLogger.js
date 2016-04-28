@@ -10,10 +10,13 @@
  */
 'use strict';
 
+const BatchedBridge = require('BatchedBridge');
+const fbjsPerformanceNow = require('fbjs/lib/performanceNow');
 
-var performanceNow = require('performanceNow');
+const performanceNow = global.nativePerformanceNow || fbjsPerformanceNow;
 
 var timespans = {};
+var extras = {};
 
 /**
  * This is meant to collect and log performance data in production, which means
@@ -24,7 +27,8 @@ var PerformanceLogger = {
     if (timespans[key]) {
       if (__DEV__) {
         console.log(
-          'PerformanceLogger: Attempting to add a timespan that already exists'
+          'PerformanceLogger: Attempting to add a timespan that already exists ',
+          key
         );
       }
       return;
@@ -40,7 +44,8 @@ var PerformanceLogger = {
     if (timespans[key]) {
       if (__DEV__) {
         console.log(
-          'PerformanceLogger: Attempting to start a timespan that already exists'
+          'PerformanceLogger: Attempting to start a timespan that already exists ',
+          key,
         );
       }
       return;
@@ -56,7 +61,17 @@ var PerformanceLogger = {
     if (!timespans[key] || !timespans[key].startTime) {
       if (__DEV__) {
         console.log(
-          'PerformanceLogger: Attempting to end a timespan that has not started'
+          'PerformanceLogger: Attempting to end a timespan that has not started ',
+          key,
+        );
+      }
+      return;
+    }
+    if (timespans[key].endTime) {
+      if (__DEV__) {
+        console.log(
+          'PerformanceLogger: Attempting to end a timespan that has already ended ',
+          key
         );
       }
       return;
@@ -67,17 +82,34 @@ var PerformanceLogger = {
       timespans[key].endTime - timespans[key].startTime;
   },
 
-  clearTimespans() {
+  clear() {
     timespans = {};
+    extras = {};
+  },
+
+  clearExceptTimespans(keys) {
+    timespans = Object.keys(timespans).reduce(function(previous, key) {
+      if (keys.indexOf(key) !== -1) {
+        previous[key] = timespans[key];
+      }
+      return previous;
+    }, {});
+    extras = {};
   },
 
   getTimespans() {
     return timespans;
   },
 
+  hasTimespan(key) {
+    return !!timespans[key];
+  },
+
   logTimespans() {
     for (var key in timespans) {
-      console.log(key + ': ' + timespans[key].totalTime + 'ms');
+      if (timespans[key].totalTime) {
+        console.log(key + ': ' + timespans[key].totalTime + 'ms');
+      }
     }
   },
 
@@ -90,7 +122,29 @@ var PerformanceLogger = {
         label
       );
     }
+  },
+
+  setExtra(key, value) {
+    if (extras[key]) {
+      if (__DEV__) {
+        console.log(
+          'PerformanceLogger: Attempting to set an extra that already exists ',
+          key
+        );
+      }
+      return;
+    }
+    extras[key] = value;
+  },
+
+  getExtras() {
+    return extras;
   }
 };
+
+BatchedBridge.registerCallableModule(
+  'PerformanceLogger',
+  PerformanceLogger
+);
 
 module.exports = PerformanceLogger;

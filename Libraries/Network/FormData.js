@@ -12,54 +12,77 @@
 'use strict';
 
 type FormDataValue = any;
-type FormDataPart = [string, FormDataValue];
+type FormDataNameValuePair = [string, FormDataValue];
+
+type Headers = {[name: string]: string};
+type FormDataPart = {
+  string: string;
+  headers: Headers;
+} | {
+  uri: string;
+  headers: Headers;
+  name?: string;
+  type?: string;
+};
 
 /**
  * Polyfill for XMLHttpRequest2 FormData API, allowing multipart POST requests
  * with mixed data (string, native files) to be submitted via XMLHttpRequest.
+ *
+ * Example:
+ *
+ *   var photo = {
+ *     uri: uriFromCameraRoll,
+ *     type: 'image/jpeg',
+ *     name: 'photo.jpg',
+ *   };
+ *
+ *   var body = new FormData();
+ *   body.append('authToken', 'secret');
+ *   body.append('photo', photo);
+ *   body.append('title', 'A beautiful photo!');
+ *
+ *   xhr.open('POST', serverURL);
+ *   xhr.send(body);
  */
 class FormData {
-  _parts: Array<FormDataPart>;
-  _partsByKey: {[key: string]: FormDataPart};
+  _parts: Array<FormDataNameValuePair>;
 
   constructor() {
     this._parts = [];
-    this._partsByKey = {};
   }
 
   append(key: string, value: FormDataValue) {
-    var parts = this._partsByKey[key];
-    if (parts) {
-      // It's a bit unclear what the behaviour should be in this case.
-      // The XMLHttpRequest spec doesn't specify it, while MDN says that
-      // the any new values should appended to existing values. We're not
-      // doing that for now -- it's tedious and doesn't seem worth the effort.
-      parts[1] = value;
-      return;
-    }
-    parts = [key, value];
-    this._parts.push(parts);
-    this._partsByKey[key] = parts;
+    // The XMLHttpRequest spec doesn't specify if duplicate keys are allowed.
+    // MDN says that any new values should be appended to existing values.
+    // In any case, major browsers allow duplicate keys, so that's what we'll do
+    // too. They'll simply get appended as additional form data parts in the
+    // request body, leaving the server to deal with them.
+    this._parts.push([key, value]);
   }
 
-  getParts(): Array<FormDataValue> {
+  getParts(): Array<FormDataPart> {
     return this._parts.map(([name, value]) => {
-      if (typeof value === 'string') {
-        return {
-          string: value,
-          headers: {
-            'content-disposition': 'form-data; name="' + name + '"',
-          },
-        };
-      }
       var contentDisposition = 'form-data; name="' + name + '"';
-      if (typeof value.name === 'string') {
-        contentDisposition += '; filename="' + value.name + '"';
+
+      /* $FlowIssue(>=0.20.1) #9463928 */
+      var headers: Headers = {'content-disposition': contentDisposition};
+
+      // The body part is a "blob", which in React Native just means
+      // an object with a `uri` attribute. Optionally, it can also
+      // have a `name` and `type` attribute to specify filename and
+      // content type (cf. web Blob interface.)
+      if (typeof value === 'object') {
+        if (typeof value.name === 'string') {
+          headers['content-disposition'] += '; filename="' + value.name + '"';
+        }
+        if (typeof value.type === 'string') {
+          headers['content-type'] = value.type;
+        }
+        return {...value, headers, fieldName: name};
       }
-      return {
-        ...value,
-        headers: {'content-disposition': contentDisposition},
-      };
+      // Convert non-object values to strings as per FormData.append() spec
+      return {string: String(value), headers, fieldName: name};
     });
   }
 }

@@ -13,6 +13,7 @@
 
 #import "RCTAssert.h"
 #import "RCTLog.h"
+#import "RCTShadowView.h"
 
 @implementation UIView (React)
 
@@ -23,8 +24,23 @@
 
 - (void)setReactTag:(NSNumber *)reactTag
 {
-  objc_setAssociatedObject(self, @selector(reactTag), reactTag, OBJC_ASSOCIATION_COPY_NONATOMIC);
+  objc_setAssociatedObject(self, @selector(reactTag), reactTag, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
+
+#if RCT_DEV
+
+- (RCTShadowView *)_DEBUG_reactShadowView
+{
+  return objc_getAssociatedObject(self, _cmd);
+}
+
+- (void)_DEBUG_setReactShadowView:(RCTShadowView *)shadowView
+{
+  // Use assign to avoid keeping the shadowView alive it if no longer exists
+  objc_setAssociatedObject(self, @selector(_DEBUG_reactShadowView), shadowView, OBJC_ASSOCIATION_ASSIGN);
+}
+
+#endif
 
 - (BOOL)isReactRootView
 {
@@ -51,7 +67,7 @@
   [subview removeFromSuperview];
 }
 
-- (NSArray *)reactSubviews
+- (NSArray<UIView *> *)reactSubviews
 {
   return self.subviews;
 }
@@ -78,16 +94,16 @@
     return;
   }
 
-  self.layer.position = position;
-  self.layer.bounds = bounds;
+  self.center = position;
+  self.bounds = bounds;
 }
 
-- (void)reactSetInheritedBackgroundColor:(UIColor *)inheritedBackgroundColor
+- (void)reactSetInheritedBackgroundColor:(__unused UIColor *)inheritedBackgroundColor
 {
-  self.backgroundColor = inheritedBackgroundColor;
+  // Does nothing by default
 }
 
-- (UIViewController *)backingViewController
+- (UIViewController *)reactViewController
 {
   id responder = [self nextResponder];
   while (responder) {
@@ -99,14 +115,14 @@
   return nil;
 }
 
-- (void)addControllerToClosestParent:(UIViewController *)controller
+- (void)reactAddControllerToClosestParent:(UIViewController *)controller
 {
   if (!controller.parentViewController) {
     UIView *parentView = (UIView *)self.reactSuperview;
     while (parentView) {
-      if (parentView.backingViewController) {
-        [parentView.backingViewController addChildViewController:controller];
-        [controller didMoveToParentViewController:parentView.backingViewController];
+      if (parentView.reactViewController) {
+        [parentView.reactViewController addChildViewController:controller];
+        [controller didMoveToParentViewController:parentView.reactViewController];
         break;
       }
       parentView = (UIView *)parentView.reactSuperview;

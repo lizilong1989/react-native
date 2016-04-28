@@ -1,13 +1,13 @@
 /**
  * Copyright (c) 2015, Facebook, Inc.  All rights reserved.
  *
- * Facebook, Inc. (“Facebook”) owns all right, title and interest, including
+ * Facebook, Inc. ("Facebook") owns all right, title and interest, including
  * all intellectual property and other proprietary rights, in and to the React
- * Native CustomComponents software (the “Software”).  Subject to your
+ * Native CustomComponents software (the "Software").  Subject to your
  * compliance with these terms, you are hereby granted a non-exclusive,
  * worldwide, royalty-free copyright license to (1) use and copy the Software;
  * and (2) reproduce and distribute the Software as part of your own software
- * (“Your Software”).  Facebook reserves all rights not expressly granted to
+ * ("Your Software").  Facebook reserves all rights not expressly granted to
  * you in this license agreement.
  *
  * THE SOFTWARE AND DOCUMENTATION, IF ANY, ARE PROVIDED "AS IS" AND ANY EXPRESS
@@ -30,13 +30,15 @@
 var EventEmitter = require('EventEmitter');
 var NavigationEvent = require('NavigationEvent');
 
-type EventParams = {
-  eventType: String;
-  data: any;
+type ExtraInfo = {
+  defaultPrevented: ?boolean,
+  eventPhase: ?number,
+  propagationStopped: ?boolean,
+  target: ?Object,
 };
 
 class NavigationEventEmitter extends EventEmitter {
-  _emitQueue: Array<EventParams>;
+  _emitQueue: Array<any>;
   _emitting: boolean;
   _target: Object;
 
@@ -47,22 +49,56 @@ class NavigationEventEmitter extends EventEmitter {
     this._target = target;
   }
 
-  emit(eventType: String, data: any): void {
+  emit(
+    eventType: string,
+    data: any,
+    didEmitCallback: ?Function,
+    extraInfo: ?ExtraInfo
+  ): void {
     if (this._emitting) {
       // An event cycle that was previously created hasn't finished yet.
       // Put this event cycle into the queue and will finish them later.
-      this._emitQueue.push({eventType, data});
+      var args: any = Array.prototype.slice.call(arguments);
+      this._emitQueue.push(args);
       return;
     }
 
     this._emitting = true;
-    var event = new NavigationEvent(eventType, this._target, data);
-    super.emit(eventType, event);
+
+    var event = NavigationEvent.pool(eventType, this._target, data);
+
+    if (extraInfo) {
+      if (extraInfo.target) {
+        event.target = extraInfo.target;
+      }
+
+      if (extraInfo.eventPhase) {
+        event.eventPhase = extraInfo.eventPhase;
+      }
+
+      if (extraInfo.defaultPrevented) {
+        event.preventDefault();
+      }
+
+      if (extraInfo.propagationStopped) {
+        event.stopPropagation();
+      }
+    }
+
+    // EventEmitter#emit only takes `eventType` as `String`. Casting `eventType`
+    // to `String` to make @flow happy.
+    super.emit(String(eventType), event);
+
+    if (typeof didEmitCallback === 'function') {
+      didEmitCallback.call(this._target, event);
+    }
+    event.dispose();
+
     this._emitting = false;
 
     while (this._emitQueue.length) {
-      var arg = this._emitQueue.shift();
-      this.emit(arg.eventType, arg.data);
+      var args: any = this._emitQueue.shift();
+      this.emit.apply(this, args);
     }
   }
 }

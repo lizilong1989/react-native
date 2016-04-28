@@ -9,11 +9,16 @@
 
 #import <UIKit/UIKit.h>
 
-#import "RCTViewNodeProtocol.h"
+@class RCTShadowView;
+
+#import "RCTComponent.h"
 
 //TODO: let's try to eliminate this category if possible
 
-@interface UIView (React) <RCTViewNodeProtocol>
+@interface UIView (React) <RCTComponent>
+
+- (NSArray<UIView *> *)reactSubviews;
+- (UIView *)reactSuperview;
 
 /**
  * Used by the UIIManager to set the view frame.
@@ -29,7 +34,7 @@
 /**
  * This method finds and returns the containing view controller for the view.
  */
-- (UIViewController *)backingViewController;
+- (UIViewController *)reactViewController;
 
 /**
  * This method attaches the specified controller as a child of the
@@ -37,7 +42,7 @@
  * controller is found (which may happen if the view is not currently
  * attached to the view hierarchy).
  */
-- (void)addControllerToClosestParent:(UIViewController *)controller;
+- (void)reactAddControllerToClosestParent:(UIViewController *)controller;
 
 /**
  * Responder overrides - to be deprecated.
@@ -45,5 +50,12 @@
 - (void)reactWillMakeFirstResponder;
 - (void)reactDidMakeFirstResponder;
 - (BOOL)reactRespondsToTouch:(UITouch *)touch;
+
+/**
+ Tools for debugging
+ */
+#if RCT_DEV
+@property (nonatomic, strong, setter=_DEBUG_setReactShadowView:) RCTShadowView *_DEBUG_reactShadowView;
+#endif
 
 @end

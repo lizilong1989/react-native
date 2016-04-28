@@ -16,17 +16,20 @@
  */
 'use strict';
 
-var React = require('react-native');
-var ReactNative = require('ReactNative');
+var React = require('react');
+var ReactNative = require('react-native');
+var {
+  Platform,
+} = ReactNative;
 var UIExplorerBlock = require('./UIExplorerBlock');
 var UIExplorerPage = require('./UIExplorerPage');
 
-var invariant = require('invariant');
+var invariant = require('fbjs/lib/invariant');
 
 import type { Example, ExampleModule } from 'ExampleTypes';
 
 var createExamplePage = function(title: ?string, exampleModule: ExampleModule)
-  : ReactClass<any, any, any> {
+  : ReactClass<any> {
   invariant(!!exampleModule.examples, 'The module must have examples');
 
   var ExamplePage = React.createClass({
@@ -36,35 +39,39 @@ var createExamplePage = function(title: ?string, exampleModule: ExampleModule)
     },
 
     getBlock: function(example: Example, i) {
-      // Hack warning: This is a hack because the www UI explorer requires
-      // renderComponent to be called.
+      // Filter platform-specific examples
+      var {title, description, platform} = example;
+      if (platform) {
+        if (Platform.OS !== platform) {
+          return null;
+        }
+        title += ' (' + platform + ' only)';
+      }
+      // Hack warning: This is a hack because the www UI explorer used to
+      // require render to be called. It should just return elements now.
       var originalRender = React.render;
-      var originalRenderComponent = React.renderComponent;
       var originalIOSRender = ReactNative.render;
-      var originalIOSRenderComponent = ReactNative.renderComponent;
       var renderedComponent;
       // TODO remove typecasts when Flow bug #6560135 is fixed
       // and workaround is removed from react-native.js
       (React: Object).render =
-      (React: Object).renderComponent =
       (ReactNative: Object).render =
-      (ReactNative: Object).renderComponent =
         function(element, container) {
           renderedComponent = element;
         };
       var result = example.render(null);
       if (result) {
-        renderedComponent = result;
+        renderedComponent = React.cloneElement(result, {
+          navigator: this.props.navigator,
+        });
       }
       (React: Object).render = originalRender;
-      (React: Object).renderComponent = originalRenderComponent;
       (ReactNative: Object).render = originalIOSRender;
-      (ReactNative: Object).renderComponent = originalIOSRenderComponent;
       return (
         <UIExplorerBlock
           key={i}
-          title={example.title}
-          description={example.description}>
+          title={title}
+          description={description}>
           {renderedComponent}
         </UIExplorerBlock>
       );

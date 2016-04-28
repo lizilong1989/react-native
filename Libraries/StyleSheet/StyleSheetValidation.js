@@ -16,7 +16,7 @@ var ReactPropTypeLocations = require('ReactPropTypeLocations');
 var TextStylePropTypes = require('TextStylePropTypes');
 var ViewStylePropTypes = require('ViewStylePropTypes');
 
-var invariant = require('invariant');
+var invariant = require('fbjs/lib/invariant');
 
 class StyleSheetValidation {
   static validateStyleProp(prop, style, caller) {
@@ -51,11 +51,6 @@ class StyleSheetValidation {
 
   static addValidStylePropTypes(stylePropTypes) {
     for (var key in stylePropTypes) {
-      invariant(
-        allStylePropTypes[key] === undefined ||
-          allStylePropTypes[key] === stylePropTypes[key],
-        'Attemped to redefine existing style prop type "' + key + '".'
-      );
       allStylePropTypes[key] = stylePropTypes[key];
     }
   }

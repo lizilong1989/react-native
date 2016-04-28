@@ -17,6 +17,7 @@ var Text = require('Text');
 var View = require('View');
 var ElementProperties = require('ElementProperties');
 var PerformanceOverlay = require('PerformanceOverlay');
+var Touchable = require('Touchable');
 var TouchableHighlight = require('TouchableHighlight');
 
 var PropTypes = React.PropTypes;
@@ -58,7 +59,7 @@ class InspectorPanel extends React.Component {
     }
     return (
       <View style={styles.container}>
-        {contents}
+        {!this.props.devtoolsIsOpen && contents}
         <View style={styles.buttonRow}>
           <Button
             title={'Inspect'}
@@ -69,6 +70,10 @@ class InspectorPanel extends React.Component {
             pressed={this.props.perfing}
             onClick={this.props.setPerfing}
           />
+          <Button title={'Touchables'}
+            pressed={this.props.touchTargetting}
+            onClick={this.props.setTouchTargetting}
+          />
         </View>
       </View>
     );
@@ -76,11 +81,14 @@ class InspectorPanel extends React.Component {
 }
 
 InspectorPanel.propTypes = {
+  devtoolsIsOpen: PropTypes.bool,
   inspecting: PropTypes.bool,
   setInspecting: PropTypes.func,
   inspected: PropTypes.object,
   perfing: PropTypes.bool,
   setPerfing: PropTypes.func,
+  touchTargetting: PropTypes.bool,
+  setTouchTargetting: PropTypes.func,
 };
 
 class Button extends React.Component {
@@ -125,6 +133,7 @@ var styles = StyleSheet.create({
     fontSize: 20,
     textAlign: 'center',
     marginVertical: 20,
+    color: 'white',
   },
 });
 

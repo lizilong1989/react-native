@@ -7,56 +7,46 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#import "RCTBridge.h"
+#import "RCTBridge+Private.h"
 
 #import <objc/runtime.h>
 
+#import "RCTConvert.h"
 #import "RCTEventDispatcher.h"
 #import "RCTKeyCommands.h"
 #import "RCTLog.h"
+#import "RCTModuleData.h"
 #import "RCTPerformanceLogger.h"
 #import "RCTUtils.h"
 
 NSString *const RCTReloadNotification = @"RCTReloadNotification";
+NSString *const RCTJavaScriptWillStartLoadingNotification = @"RCTJavaScriptWillStartLoadingNotification";
 NSString *const RCTJavaScriptDidLoadNotification = @"RCTJavaScriptDidLoadNotification";
 NSString *const RCTJavaScriptDidFailToLoadNotification = @"RCTJavaScriptDidFailToLoadNotification";
-NSString *const RCTDidCreateNativeModules = @"RCTDidCreateNativeModules";
+NSString *const RCTDidInitializeModuleNotification = @"RCTDidInitializeModuleNotification";
 
-@class RCTBatchedBridge;
-
-@interface RCTBatchedBridge : RCTBridge <RCTInvalidating>
-
-@property (nonatomic, weak) RCTBridge *parentBridge;
-
-- (instancetype)initWithParentBridge:(RCTBridge *)bridge NS_DESIGNATED_INITIALIZER;
-
-@end
-
-@interface RCTBridge ()
-
-@property (nonatomic, strong) RCTBatchedBridge *batchedBridge;
-
-@end
-
-RCT_EXTERN id<RCTJavaScriptExecutor> RCTGetLatestExecutor(void);
-
-static NSMutableArray *RCTModuleClasses;
-NSArray *RCTGetModuleClasses(void);
-NSArray *RCTGetModuleClasses(void)
+static NSMutableArray<Class> *RCTModuleClasses;
+NSArray<Class> *RCTGetModuleClasses(void);
+NSArray<Class> *RCTGetModuleClasses(void)
 {
   return RCTModuleClasses;
 }
 
+/**
+ * Register the given class as a bridge module. All modules must be registered
+ * prior to the first bridge initialization.
+ */
+void RCTRegisterModule(Class);
 void RCTRegisterModule(Class moduleClass)
 {
   static dispatch_once_t onceToken;
   dispatch_once(&onceToken, ^{
-    RCTModuleClasses = [[NSMutableArray alloc] init];
+    RCTModuleClasses = [NSMutableArray new];
   });
 
   RCTAssert([moduleClass conformsToProtocol:@protocol(RCTBridgeModule)],
             @"%@ does not conform to the RCTBridgeModule protocol",
-            NSStringFromClass(moduleClass));
+            moduleClass);
 
   // Register module
   [RCTModuleClasses addObject:moduleClass];
@@ -67,11 +57,13 @@ void RCTRegisterModule(Class moduleClass)
  */
 NSString *RCTBridgeModuleNameForClass(Class cls)
 {
-  NSString *name = nil;
-  if ([cls respondsToSelector:NSSelectorFromString(@"moduleName")]) {
-    name = [cls valueForKey:@"moduleName"];
-  }
-  if ([name length] == 0) {
+#if RCT_DEV
+  RCTAssert([cls conformsToProtocol:@protocol(RCTBridgeModule)],
+            @"Bridge module `%@` does not conform to RCTBridgeModule", cls);
+#endif
+
+  NSString *name = [cls moduleName];
+  if (name.length == 0) {
     name = NSStringFromClass(cls);
   }
   if ([name hasPrefix:@"RK"]) {
@@ -80,8 +72,10 @@ NSString *RCTBridgeModuleNameForClass(Class cls)
   return name;
 }
 
-
 @implementation RCTBridge
+{
+  NSURL *_delegateBundleURL;
+}
 
 dispatch_queue_t RCTJSThread;
 
@@ -92,57 +86,60 @@ dispatch_queue_t RCTJSThread;
 
     // Set up JS thread
     RCTJSThread = (id)kCFNull;
-
-#if RCT_DEBUG
-
-    // Set up module classes
-    static unsigned int classCount;
-    Class *classes = objc_copyClassList(&classCount);
-
-    for (unsigned int i = 0; i < classCount; i++)
-    {
-      Class cls = classes[i];
-      Class superclass = cls;
-      while (superclass)
-      {
-        if (class_conformsToProtocol(superclass, @protocol(RCTBridgeModule)))
-        {
-          if (![RCTModuleClasses containsObject:cls]) {
-            RCTLogError(@"Class %@ was not exported. Did you forget to use "
-                        "RCT_EXPORT_MODULE()?", NSStringFromClass(cls));
-          }
-          break;
-        }
-        superclass = class_getSuperclass(superclass);
-      }
-    }
-
-    free(classes);
-
-#endif
-
   });
+}
+
+static RCTBridge *RCTCurrentBridgeInstance = nil;
+
+/**
+ * The last current active bridge instance. This is set automatically whenever
+ * the bridge is accessed. It can be useful for static functions or singletons
+ * that need to access the bridge for purposes such as logging, but should not
+ * be relied upon to return any particular instance, due to race conditions.
+ */
++ (instancetype)currentBridge
+{
+  return RCTCurrentBridgeInstance;
+}
+
++ (void)setCurrentBridge:(RCTBridge *)currentBridge
+{
+  RCTCurrentBridgeInstance = currentBridge;
+}
+
+- (instancetype)initWithDelegate:(id<RCTBridgeDelegate>)delegate
+                   launchOptions:(NSDictionary *)launchOptions
+{
+  if ((self = [super init])) {
+    RCTPerformanceLoggerStart(RCTPLBridgeStartup);
+    RCTPerformanceLoggerStart(RCTPLTTI);
+
+    _delegate = delegate;
+    _launchOptions = [launchOptions copy];
+    [self setUp];
+    RCTExecuteOnMainThread(^{ [self bindKeys]; }, NO);
+  }
+  return self;
 }
 
 - (instancetype)initWithBundleURL:(NSURL *)bundleURL
                    moduleProvider:(RCTBridgeModuleProviderBlock)block
                     launchOptions:(NSDictionary *)launchOptions
 {
-  RCTAssertMainThread();
-
   if ((self = [super init])) {
+    RCTPerformanceLoggerStart(RCTPLBridgeStartup);
     RCTPerformanceLoggerStart(RCTPLTTI);
 
     _bundleURL = bundleURL;
     _moduleProvider = block;
     _launchOptions = [launchOptions copy];
-    [self bindKeys];
     [self setUp];
+    RCTExecuteOnMainThread(^{ [self bindKeys]; }, NO);
   }
   return self;
 }
 
-RCT_NOT_IMPLEMENTED(-init)
+RCT_NOT_IMPLEMENTED(- (instancetype)init)
 
 - (void)dealloc
 {
@@ -164,30 +161,63 @@ RCT_NOT_IMPLEMENTED(-init)
                                              object:nil];
 
 #if TARGET_IPHONE_SIMULATOR
-
-  __weak RCTBridge *weakSelf = self;
   RCTKeyCommands *commands = [RCTKeyCommands sharedInstance];
 
   // reload in current mode
   [commands registerKeyCommandWithInput:@"r"
                           modifierFlags:UIKeyModifierCommand
                                  action:^(__unused UIKeyCommand *command) {
-                                   [weakSelf reload];
-                                 }];
+    [[NSNotificationCenter defaultCenter] postNotificationName:RCTReloadNotification
+                                                        object:nil
+                                                      userInfo:nil];
+  }];
 
 #endif
+}
 
+- (NSArray<Class> *)moduleClasses
+{
+  return self.batchedBridge.moduleClasses;
+}
+
+- (id)moduleForName:(NSString *)moduleName
+{
+  return [self.batchedBridge moduleForName:moduleName];
+}
+
+- (id)moduleForClass:(Class)moduleClass
+{
+  return [self moduleForName:RCTBridgeModuleNameForClass(moduleClass)];
+}
+
+- (NSArray *)modulesConformingToProtocol:(Protocol *)protocol
+{
+  NSMutableArray *modules = [NSMutableArray new];
+  for (Class moduleClass in self.moduleClasses) {
+    if ([moduleClass conformsToProtocol:protocol]) {
+      id module = [self moduleForClass:moduleClass];
+      if (module) {
+        [modules addObject:module];
+      }
+    }
+  }
+  return [modules copy];
+}
+
+- (BOOL)moduleIsInitialized:(Class)moduleClass
+{
+  return [self.batchedBridge moduleIsInitialized:moduleClass];
 }
 
 - (RCTEventDispatcher *)eventDispatcher
 {
-  return self.modules[RCTBridgeModuleNameForClass([RCTEventDispatcher class])];
+  return [self moduleForClass:[RCTEventDispatcher class]];
 }
 
 - (void)reload
 {
   /**
-   * AnyThread
+   * Any thread
    */
   dispatch_async(dispatch_get_main_queue(), ^{
     [self invalidate];
@@ -197,54 +227,49 @@ RCT_NOT_IMPLEMENTED(-init)
 
 - (void)setUp
 {
-  RCTAssertMainThread();
+  // Only update bundleURL from delegate if delegate bundleURL has changed
+  NSURL *previousDelegateURL = _delegateBundleURL;
+  _delegateBundleURL = [self.delegate sourceURLForBridge:self];
+  if (_delegateBundleURL && ![_delegateBundleURL isEqual:previousDelegateURL]) {
+    _bundleURL = _delegateBundleURL;
+  }
 
-  _batchedBridge = [[RCTBatchedBridge alloc] initWithParentBridge:self];
+  // Sanitize the bundle URL
+  _bundleURL = [RCTConvert NSURL:_bundleURL.absoluteString];
+
+  [self createBatchedBridge];
+}
+
+- (void)createBatchedBridge
+{
+  self.batchedBridge = [[RCTBatchedBridge alloc] initWithParentBridge:self];
 }
 
 - (BOOL)isLoading
 {
-  return _batchedBridge.loading;
+  return self.batchedBridge.loading;
 }
 
 - (BOOL)isValid
 {
-  return _batchedBridge.isValid;
+  return self.batchedBridge.valid;
+}
+
+- (BOOL)isBatchActive
+{
+  return [_batchedBridge isBatchActive];
 }
 
 - (void)invalidate
 {
-  RCTAssertMainThread();
+  RCTBridge *batchedBridge = self.batchedBridge;
+  self.batchedBridge = nil;
 
-  [_batchedBridge invalidate];
-  _batchedBridge = nil;
-}
-
-+ (void)logMessage:(NSString *)message level:(NSString *)level
-{
-  dispatch_async(dispatch_get_main_queue(), ^{
-    if (!RCTGetLatestExecutor().isValid) {
-      return;
-    }
-
-    [RCTGetLatestExecutor() executeJSCall:@"RCTLog"
-                                   method:@"logIfNoNativeHook"
-                                arguments:@[level, message]
-                                  context:RCTGetExecutorID(RCTGetLatestExecutor())
-                                 callback:^(__unused id json, __unused NSError *error) {}];
-  });
-}
-
-- (NSDictionary *)modules
-{
-  return _batchedBridge.modules;
-}
-
-#define RCT_INNER_BRIDGE_ONLY(...) \
-- (void)__VA_ARGS__ \
-{ \
-  RCTLogMustFix(@"Called method \"%@\" on top level bridge. This method should \
-              only be called from bridge instance in a bridge module", @(__func__)); \
+  if (batchedBridge) {
+    RCTExecuteOnMainThread(^{
+      [batchedBridge invalidate];
+    }, NO);
+  }
 }
 
 - (void)enqueueJSCall:(NSString *)moduleDotMethod args:(NSArray *)args
@@ -252,9 +277,9 @@ RCT_NOT_IMPLEMENTED(-init)
   [self.batchedBridge enqueueJSCall:moduleDotMethod args:args];
 }
 
-RCT_INNER_BRIDGE_ONLY(_invokeAndProcessModule:(__unused NSString *)module
-                      method:(__unused NSString *)method
-                      arguments:(__unused NSArray *)args
-                      context:(__unused NSNumber *)context)
+- (void)enqueueCallback:(NSNumber *)cbID args:(NSArray *)args
+{
+  [self.batchedBridge enqueueCallback:cbID args:args];
+}
 
 @end

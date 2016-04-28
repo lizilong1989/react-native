@@ -8,120 +8,124 @@
  */
 'use strict';
 
-var fs = require('fs');
-var Promise = require('promise');
-var Cache = require('./Cache');
-var workerFarm = require('worker-farm');
-var declareOpts = require('../lib/declareOpts');
-var util = require('util');
-var ModuleTransport = require('../lib/ModuleTransport');
+const Promise = require('promise');
+const declareOpts = require('../lib/declareOpts');
+const os = require('os');
+const util = require('util');
+const workerFarm = require('worker-farm');
+const debug = require('debug')('ReactNativePackager:JStransformer');
 
-var readFile = Promise.denodeify(fs.readFile);
+// Avoid memory leaks caused in workers. This number seems to be a good enough number
+// to avoid any memory leak while not slowing down initial builds.
+// TODO(amasad): Once we get bundle splitting, we can drive this down a bit more.
+const MAX_CALLS_PER_WORKER = 600;
 
-module.exports = Transformer;
-Transformer.TransformError = TransformError;
+// Worker will timeout if one of the callers timeout.
+const DEFAULT_MAX_CALL_TIME = 301000;
 
-var validateOpts = declareOpts({
-  projectRoots: {
-    type: 'array',
-    required: true,
-  },
-  blacklistRE: {
-    type: 'object', // typeof regex is object
-  },
-  polyfillModuleNames: {
-    type: 'array',
-    default: [],
-  },
-  cacheVersion: {
-    type: 'string',
-    default: '1.0',
-  },
-  resetCache: {
-    type: 'boolean',
-    default: false,
-  },
+// How may times can we tolerate failures from the worker.
+const MAX_RETRIES = 2;
+
+const validateOpts = declareOpts({
   transformModulePath: {
     type:'string',
     required: false,
   },
-  nonPersistent: {
-    type: 'boolean',
-    default: false,
+  transformTimeoutInterval: {
+    type: 'number',
+    default: DEFAULT_MAX_CALL_TIME,
   },
 });
 
-function Transformer(options) {
-  var opts = validateOpts(options);
+const maxConcurrentWorkers = ((cores, override) => {
+  if (override) {
+    return Math.min(cores, override);
+  }
 
-  this._cache = opts.nonPersistent
-    ? new DummyCache()
-    : new Cache({
-      resetCache: options.resetCache,
-      cacheVersion: options.cacheVersion,
-      projectRoots: options.projectRoots,
-      transformModulePath: options.transformModulePath,
-    });
+  if (cores < 3) {
+    return cores;
+  }
+  if (cores < 8) {
+    return Math.floor(cores * 0.75);
+  }
+  if (cores < 24) {
+    return Math.floor(3/8 * cores + 3); // between cores *.75 and cores / 2
+  }
+  return cores / 2;
+})(os.cpus().length, process.env.REACT_NATIVE_MAX_WORKERS);
 
-  if (options.transformModulePath != null) {
-    this._workers = workerFarm(
-      {autoStart: true, maxConcurrentCallsPerWorker: 1},
-      options.transformModulePath
-    );
+class Transformer {
+  constructor(options) {
+    const opts = this._opts = validateOpts(options);
 
-    this._transform = Promise.denodeify(this._workers);
+    const {transformModulePath} = opts;
+
+    if (transformModulePath) {
+      this._transformModulePath = require.resolve(transformModulePath);
+
+      this._workers = workerFarm(
+        {
+          autoStart: true,
+          maxConcurrentCallsPerWorker: 1,
+          maxConcurrentWorkers: maxConcurrentWorkers,
+          maxCallsPerWorker: MAX_CALLS_PER_WORKER,
+          maxCallTime: opts.transformTimeoutInterval,
+          maxRetries: MAX_RETRIES,
+        },
+        require.resolve('./worker'),
+        ['minify', 'transformAndExtractDependencies']
+      );
+
+      this._transform = Promise.denodeify(this._workers.transformAndExtractDependencies);
+      this.minify = Promise.denodeify(this._workers.minify);
+    }
+  }
+
+  kill() {
+    this._workers && workerFarm.end(this._workers);
+  }
+
+  transformFile(fileName, code, options) {
+    if (!this._transform) {
+      return Promise.reject(new Error('No transfrom module'));
+    }
+    debug('transforming file', fileName);
+    return this
+      ._transform(this._transformModulePath, fileName, code, options)
+      .then(result => {
+        debug('done transforming file', fileName);
+        return result;
+      })
+      .catch(error => {
+        if (error.type === 'TimeoutError') {
+          const timeoutErr = new Error(
+            `TimeoutError: transforming ${fileName} took longer than ` +
+            `${this._opts.transformTimeoutInterval / 1000} seconds.\n` +
+            `You can adjust timeout via the 'transformTimeoutInterval' option`
+          );
+          timeoutErr.type = 'TimeoutError';
+          throw timeoutErr;
+        } else if (error.type === 'ProcessTerminatedError') {
+          const uncaughtError = new Error(
+            'Uncaught error in the transformer worker: ' +
+            this._opts.transformModulePath
+          );
+          uncaughtError.type = 'ProcessTerminatedError';
+          throw uncaughtError;
+        }
+
+        throw formatError(error, fileName);
+      });
   }
 }
 
-Transformer.prototype.kill = function() {
-  this._workers && workerFarm.end(this._workers);
-  return this._cache.end();
-};
+module.exports = Transformer;
 
-Transformer.prototype.invalidateFile = function(filePath) {
-  this._cache.invalidate(filePath);
-};
+Transformer.TransformError = TransformError;
 
-Transformer.prototype.loadFileAndTransform = function(filePath) {
-  if (this._transform == null) {
-    return Promise.reject(new Error('No transfrom module'));
-  }
-
-  var transform = this._transform;
-  return this._cache.get(filePath, function() {
-    return readFile(filePath)
-      .then(function(buffer) {
-        var sourceCode = buffer.toString();
-
-        return transform({
-          sourceCode: sourceCode,
-          filename: filePath,
-        }).then(
-          function(res) {
-            if (res.error) {
-              console.warn(
-                'Error property on the result value form the transformer',
-                'module is deprecated and will be removed in future versions.',
-                'Please pass an error object as the first argument to the callback'
-              );
-              throw formatError(res.error, filePath);
-            }
-
-            return new ModuleTransport({
-              code: res.code,
-              map: res.map,
-              sourcePath: filePath,
-              sourceCode: sourceCode,
-            });
-          }
-        );
-      }).catch(function(err) {
-        throw formatError(err, filePath);
-      });
-  });
-};
-
-function TransformError() {}
+function TransformError() {
+  Error.captureStackTrace && Error.captureStackTrace(this, TransformError);
+}
 util.inherits(TransformError, SyntaxError);
 
 function formatError(err, filename, source) {
@@ -155,10 +159,3 @@ function formatBabelError(err, filename) {
   error.description = err.message;
   return error;
 }
-
-function DummyCache() {}
-DummyCache.prototype.get = function(filePath, loaderCb) {
-  return loaderCb();
-};
-DummyCache.prototype.end =
-DummyCache.prototype.invalidate = function(){};

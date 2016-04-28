@@ -15,28 +15,40 @@
  */
 'use strict';
 
-var React = require('react-native');
+var React = require('react');
+var ReactNative = require('react-native');
 var {
   Image,
   LayoutAnimation,
   StyleSheet,
   Text,
   View,
-} = React;
+} = ReactNative;
+
+type Layout = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 
 type LayoutEvent = {
   nativeEvent: {
-    layout: {
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-    };
+    layout: Layout,
   };
 };
 
+type State = {
+  containerStyle?: { width: number },
+  extraText?: string,
+  imageLayout?: Layout,
+  textLayout?: Layout,
+  viewLayout?: Layout,
+  viewStyle: { margin: number },
+};
+
 var LayoutEventExample = React.createClass({
-  getInitialState: function() {
+  getInitialState(): State {
     return {
       viewStyle: {
         margin: 20,
@@ -49,8 +61,7 @@ var LayoutEventExample = React.createClass({
       () => {
         console.log('layout animation done.');
         this.addWrapText();
-      },
-      (error) => { throw new Error(JSON.stringify(error)); }
+      }
     );
     this.setState({
       viewStyle: {
@@ -86,8 +97,7 @@ var LayoutEventExample = React.createClass({
     return (
       <View style={this.state.containerStyle}>
         <Text>
-          onLayout events are called on mount and whenever layout is updated,
-          including after layout animations complete.{'  '}
+          layout events are called on mount and whenever layout is recalculated. Note that the layout event will typically be received <Text style={styles.italicText}>before</Text> the layout has updated on screen, especially when using layout animations.{'  '}
           <Text style={styles.pressText} onPress={this.animateViewLayout}>
             Press here to change layout.
           </Text>
@@ -137,13 +147,17 @@ var styles = StyleSheet.create({
   pressText: {
     fontWeight: 'bold',
   },
+  italicText: {
+    fontStyle: 'italic',
+  },
 });
 
-exports.title = 'onLayout';
-exports.description = 'Layout events can be used to measure view size and position.';
+exports.title = 'Layout Events';
+exports.description = 'Examples that show how Layout events can be used to ' +
+  'measure view size and position.';
 exports.examples = [
 {
-  title: 'onLayout',
+  title: 'LayoutEventExample',
   render: function(): ReactElement {
     return <LayoutEventExample />;
   },

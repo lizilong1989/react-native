@@ -16,12 +16,13 @@
  */
 'use strict';
 
-var React = require('react-native');
+var React = require('react');
+var ReactNative = require('react-native');
 var {
   StyleSheet,
   Text,
   View,
-} = React;
+} = ReactNative;
 
 var UIExplorerTitle = React.createClass({
   render: function() {
@@ -41,6 +42,7 @@ var styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: '#d6d7da',
     margin: 10,
+    marginBottom: 0,
     height: 45,
     padding: 10,
     backgroundColor: 'white',

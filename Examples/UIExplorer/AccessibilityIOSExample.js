@@ -15,11 +15,12 @@
  */
 'use strict';
 
-var React = require('react-native');
+var React = require('react');
+var ReactNative = require('react-native');
 var {
   Text,
   View,
-} = React;
+} = ReactNative;
 
 var AccessibilityIOSExample = React.createClass({
   render() {
@@ -44,7 +45,7 @@ var AccessibilityIOSExample = React.createClass({
             Accessibility label example
           </Text>
         </View>
-        <View accessibilityTraits={["button", "selected"]}
+        <View accessibilityTraits={['button', 'selected']}
               accessible={true}>
           <Text>
             Accessibility traits example

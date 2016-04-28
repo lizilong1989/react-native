@@ -16,7 +16,8 @@ typedef NS_ENUM(NSInteger, RCTTextEventType) {
   RCTTextEventTypeBlur,
   RCTTextEventTypeChange,
   RCTTextEventTypeSubmit,
-  RCTTextEventTypeEnd
+  RCTTextEventTypeEnd,
+  RCTTextEventTypeKeyPress
 };
 
 typedef NS_ENUM(NSInteger, RCTScrollEventType) {
@@ -28,35 +29,43 @@ typedef NS_ENUM(NSInteger, RCTScrollEventType) {
   RCTScrollEventTypeEndAnimation,
 };
 
+/**
+ * The threshold at which text inputs will start warning that the JS thread
+ * has fallen behind (resulting in poor input performance, missed keys, etc.)
+ */
+RCT_EXTERN const NSInteger RCTTextUpdateLagWarningThreshold;
+
+/**
+ * Takes an input event name and normalizes it to the form that is required
+ * by the events system (currently that means starting with the "top" prefix,
+ * but that's an implementation detail that may change in future).
+ */
+RCT_EXTERN NSString *RCTNormalizeInputEventName(NSString *eventName);
+
 @protocol RCTEvent <NSObject>
 
 @required
 
 @property (nonatomic, strong, readonly) NSNumber *viewTag;
 @property (nonatomic, copy, readonly) NSString *eventName;
-@property (nonatomic, copy, readonly) NSDictionary *body;
 @property (nonatomic, assign, readonly) uint16_t coalescingKey;
 
 - (BOOL)canCoalesce;
 - (id<RCTEvent>)coalesceWithEvent:(id<RCTEvent>)newEvent;
 
+// used directly for doing a JS call
 + (NSString *)moduleDotMethod;
+// must contain only JSON compatible values
+- (NSArray *)arguments;
 
 @end
 
-@interface RCTBaseEvent : NSObject <RCTEvent>
-
-- (instancetype)initWithViewTag:(NSNumber *)viewTag
-                      eventName:(NSString *)eventName
-                           body:(NSDictionary *)body NS_DESIGNATED_INITIALIZER;
-
-@end
 
 /**
  * This class wraps the -[RCTBridge enqueueJSCall:args:] method, and
  * provides some convenience methods for generating event calls.
  */
-@interface RCTEventDispatcher : NSObject
+@interface RCTEventDispatcher : NSObject <RCTBridgeModule>
 
 /**
  * Send an application-specific event that does not relate to a specific
@@ -81,8 +90,16 @@ typedef NS_ENUM(NSInteger, RCTScrollEventType) {
  */
 - (void)sendTextEventWithType:(RCTTextEventType)type
                      reactTag:(NSNumber *)reactTag
-                         text:(NSString *)text;
+                         text:(NSString *)text
+                          key:(NSString *)key
+                   eventCount:(NSInteger)eventCount;
 
+/**
+ * Send a pre-prepared event object.
+ *
+ * Events are sent to JS as soon as the thread is free to process them.
+ * If an event can be coalesced and there is another compatible event waiting, the coalescing will happen immediately.
+ */
 - (void)sendEvent:(id<RCTEvent>)event;
 
 @end

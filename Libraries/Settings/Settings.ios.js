@@ -14,12 +14,12 @@
 var RCTDeviceEventEmitter = require('RCTDeviceEventEmitter');
 var RCTSettingsManager = require('NativeModules').SettingsManager;
 
-var invariant = require('invariant');
+var invariant = require('fbjs/lib/invariant');
 
 var subscriptions: Array<{keys: Array<string>; callback: ?Function}> = [];
 
 var Settings = {
-  _settings: RCTSettingsManager.settings,
+  _settings: RCTSettingsManager && RCTSettingsManager.settings,
 
   get(key: string): mixed {
     return this._settings[key];

@@ -13,17 +13,16 @@
 */
 'use strict';
 
-var React = require('react-native');
+var React = require('react');
+var ReactNative = require('react-native');
 var {
-  PixelRatio,
   Navigator,
   StyleSheet,
   ScrollView,
   Text,
   TouchableHighlight,
-  TouchableOpacity,
-  View,
-} = React;
+  TouchableOpacity
+} = ReactNative;
 
 var _getRandomRoute = function() {
   return {
@@ -55,26 +54,24 @@ var BreadcrumbNavSample = React.createClass({
         return (
           <TouchableOpacity
             onPress={() => navigator.push(_getRandomRoute())}>
-            <View>
-              <Text style={styles.titleText}>{route.title}</Text>
-            </View>
+            <Text style={styles.titleText}>{route.title}</Text>
           </TouchableOpacity>
         );
       },
       iconForRoute: function(route, navigator) {
         return (
-          <TouchableOpacity onPress={() => {
-            navigator.popToRoute(route);
-          }}>
-            <View style={styles.crumbIconPlaceholder} />
-          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => { navigator.popToRoute(route); }}
+            style={styles.crumbIconPlaceholder}
+          />
         );
       },
       separatorForRoute: function(route, navigator) {
         return (
-          <TouchableOpacity onPress={navigator.pop}>
-            <View style={styles.crumbSeparatorPlaceholder} />
-          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={navigator.pop}
+            style={styles.crumbSeparatorPlaceholder}
+          />
         );
       }
     };
@@ -84,19 +81,19 @@ var BreadcrumbNavSample = React.createClass({
     return (
       <ScrollView style={styles.scene}>
         <NavButton
-          onPress={() => { navigator.push(_getRandomRoute()) }}
+          onPress={() => { navigator.push(_getRandomRoute()); }}
           text="Push"
         />
         <NavButton
-          onPress={() => { navigator.immediatelyResetRouteStack([_getRandomRoute(), _getRandomRoute()]) }}
+          onPress={() => { navigator.immediatelyResetRouteStack([_getRandomRoute(), _getRandomRoute()]); }}
           text="Reset w/ 2 scenes"
         />
         <NavButton
-          onPress={() => { navigator.popToTop() }}
+          onPress={() => { navigator.popToTop(); }}
           text="Pop to top"
         />
         <NavButton
-          onPress={() => { navigator.replace(_getRandomRoute()) }}
+          onPress={() => { navigator.replace(_getRandomRoute()); }}
           text="Replace"
         />
         <NavButton
@@ -134,7 +131,7 @@ var styles = StyleSheet.create({
   button: {
     backgroundColor: 'white',
     padding: 15,
-    borderBottomWidth: 1 / PixelRatio.get(),
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#CDCDCD',
   },
   buttonText: {

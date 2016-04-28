@@ -8,66 +8,118 @@
  */
 'use strict';
 
-require('babel-core/register')({
-  only: /react-packager\/src/
-});
+require('../babelRegisterOnly')([/react-packager\/src/]);
 
+require('node-haste/lib/fastpath').replace();
 useGracefulFs();
 
+var debug = require('debug');
 var Activity = require('./src/Activity');
-var Server = require('./src/Server');
 
+exports.createServer = createServer;
 exports.middleware = function(options) {
-  var server = new Server(options);
+  var server = createServer(options);
   return server.processRequest.bind(server);
 };
 
-exports.buildPackage = function(options, packageOptions) {
-  var server = createServer(options);
-  return server.buildPackage(packageOptions)
+exports.Activity = Activity;
+
+// Renamed "package" to "bundle". But maintain backwards
+// compat.
+exports.buildPackage =
+exports.buildBundle = function(options, bundleOptions) {
+  var server = createNonPersistentServer(options);
+  return server.buildBundle(bundleOptions)
     .then(function(p) {
       server.end();
       return p;
     });
 };
 
-exports.buildPackageFromUrl = function(options, reqUrl) {
-  var server = createServer(options);
-  return server.buildPackageFromUrl(reqUrl)
+exports.buildPrepackBundle = function(options, bundleOptions) {
+  var server = createNonPersistentServer(options);
+  return server.buildPrepackBundle(bundleOptions)
     .then(function(p) {
       server.end();
       return p;
     });
 };
 
-exports.getDependencies = function(options, main) {
-  var server = createServer(options);
-  return server.getDependencies(main)
+exports.buildPackageFromUrl =
+exports.buildBundleFromUrl = function(options, reqUrl) {
+  var server = createNonPersistentServer(options);
+  return server.buildBundleFromUrl(reqUrl)
+    .then(function(p) {
+      server.end();
+      return p;
+    });
+};
+
+exports.getDependencies = function(options, bundleOptions) {
+  var server = createNonPersistentServer(options);
+  return server.getDependencies(bundleOptions)
     .then(function(r) {
       server.end();
       return r.dependencies;
     });
 };
 
+exports.getOrderedDependencyPaths = function(options, bundleOptions) {
+  var server = createNonPersistentServer(options);
+  return server.getOrderedDependencyPaths(bundleOptions)
+    .then(function(paths) {
+      server.end();
+      return paths;
+    });
+};
+
 function useGracefulFs() {
   var fs = require('fs');
   var gracefulFs = require('graceful-fs');
+  gracefulFs.gracefulify(fs);
+}
 
-  // A bit sneaky but it's not straightforward to update all the
-  // modules we depend on.
-  Object.keys(fs).forEach(function(method) {
-    if (typeof fs[method] === 'function' && gracefulFs[method]) {
-      fs[method] = gracefulFs[method];
-    }
-  });
+function enableDebug() {
+  // react-packager logs debug messages using the 'debug' npm package, and uses
+  // the following prefix throughout.
+  // To enable debugging, we need to set our pattern or append it to any
+  // existing pre-configured pattern to avoid disabling logging for
+  // other packages
+  var debugPattern = 'ReactNativePackager:*';
+  var existingPattern = debug.load();
+  if (existingPattern) {
+    debugPattern += ',' + existingPattern;
+  }
+  debug.enable(debugPattern);
 }
 
 function createServer(options) {
+  // the debug module is configured globally, we need to enable debugging
+  // *before* requiring any packages that use `debug` for logging
+  if (options.verbose) {
+    enableDebug();
+  }
+
+  var Server = require('./src/Server');
+  return new Server(omit(options, ['verbose']));
+}
+
+function createNonPersistentServer(options) {
   Activity.disable();
   // Don't start the filewatcher or the cache.
   if (options.nonPersistent == null) {
     options.nonPersistent = true;
   }
 
-  return new Server(options);
+  return createServer(options);
+}
+
+function omit(obj, blacklistedKeys) {
+  return Object.keys(obj).reduce((clone, key) => {
+    if (blacklistedKeys.indexOf(key) === -1) {
+      clone[key] = obj[key];
+    }
+
+    return clone;
+  }, {});
 }

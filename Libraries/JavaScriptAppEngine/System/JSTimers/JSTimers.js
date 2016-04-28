@@ -47,7 +47,7 @@ var JSTimers = {
       return func.apply(undefined, args);
     };
     JSTimersExecution.types[freeIndex] = JSTimersExecution.Type.setTimeout;
-    RCTTiming.createTimer(newID, duration, Date.now(), /** recurring */ false);
+    RCTTiming.createTimer(newID, duration || 0, Date.now(), /** recurring */ false);
     return newID;
   },
 
@@ -63,7 +63,7 @@ var JSTimers = {
       return func.apply(undefined, args);
     };
     JSTimersExecution.types[freeIndex] = JSTimersExecution.Type.setInterval;
-    RCTTiming.createTimer(newID, duration, Date.now(), /** recurring */ true);
+    RCTTiming.createTimer(newID, duration || 0, Date.now(), /** recurring */ true);
     return newID;
   },
 
@@ -106,10 +106,10 @@ var JSTimers = {
 
   clearImmediate: function(timerID) {
     JSTimers._clearTimerID(timerID);
-    JSTimersExecution.immediates.splice(
-      JSTimersExecution.immediates.indexOf(timerID),
-      1
-    );
+    var index = JSTimersExecution.immediates.indexOf(timerID);
+    if (index !== -1) {
+      JSTimersExecution.immediates.splice(index, 1);
+    }
   },
 
   cancelAnimationFrame: function(timerID) {

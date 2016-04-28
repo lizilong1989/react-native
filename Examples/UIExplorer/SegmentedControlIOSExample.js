@@ -15,13 +15,14 @@
  */
 'use strict';
 
-var React = require('react-native');
+var React = require('react');
+var ReactNative = require('react-native');
 var {
   SegmentedControlIOS,
   Text,
   View,
   StyleSheet
-} = React;
+} = ReactNative;
 
 var BasicSegmentedControlExample = React.createClass({
   render() {
@@ -118,7 +119,7 @@ var EventSegmentedControlExample = React.createClass({
 
   _onChange(event) {
     this.setState({
-      selectedIndex: event.nativeEvent.selectedIndex,
+      selectedIndex: event.nativeEvent.selectedSegmentIndex,
     });
   },
 

@@ -11,29 +11,99 @@
 
 #import "RCTPerformanceLogger.h"
 #import "RCTRootView.h"
+#import "RCTLog.h"
+#import "RCTProfile.h"
 
 static int64_t RCTPLData[RCTPLSize][2] = {};
+static NSUInteger RCTPLCookies[RCTPLSize] = {};
 
 void RCTPerformanceLoggerStart(RCTPLTag tag)
 {
+  if (RCTProfileIsProfiling()) {
+    NSString *label = RCTPerformanceLoggerLabels()[tag];
+    RCTPLCookies[tag] = RCTProfileBeginAsyncEvent(0, label, nil);
+  }
+
   RCTPLData[tag][0] = CACurrentMediaTime() * 1000;
+  RCTPLData[tag][1] = 0;
 }
 
 void RCTPerformanceLoggerEnd(RCTPLTag tag)
 {
-  RCTPLData[tag][1] = CACurrentMediaTime() * 1000;
+  if (RCTPLData[tag][0] != 0 && RCTPLData[tag][1] == 0) {
+    RCTPLData[tag][1] = CACurrentMediaTime() * 1000;
+
+    if (RCTProfileIsProfiling()) {
+      NSString *label = RCTPerformanceLoggerLabels()[tag];
+      RCTProfileEndAsyncEvent(0, @"native", RCTPLCookies[tag], label, @"RCTPerformanceLogger", nil);
+    }
+  } else {
+    RCTLogInfo(@"Unbalanced calls start/end for tag %li", (unsigned long)tag);
+  }
 }
 
-NSArray *RCTPerformanceLoggerOutput(void)
+void RCTPerformanceLoggerSet(RCTPLTag tag, int64_t value)
 {
-  return @[
-    @(RCTPLData[0][0]),
-    @(RCTPLData[0][1]),
-    @(RCTPLData[1][0]),
-    @(RCTPLData[1][1]),
-    @(RCTPLData[2][0]),
-    @(RCTPLData[2][1]),
-  ];
+  RCTPLData[tag][0] = 0;
+  RCTPLData[tag][1] = value;
+}
+
+void RCTPerformanceLoggerAdd(RCTPLTag tag, int64_t value)
+{
+  RCTPLData[tag][0] = 0;
+  RCTPLData[tag][1] += value;
+}
+
+void RCTPerformanceLoggerAppendStart(RCTPLTag tag)
+{
+  RCTPLData[tag][0] = CACurrentMediaTime() * 1000;
+}
+
+void RCTPerformanceLoggerAppendEnd(RCTPLTag tag)
+{
+  if (RCTPLData[tag][0] != 0) {
+    RCTPLData[tag][1] += CACurrentMediaTime() * 1000 - RCTPLData[tag][0];
+    RCTPLData[tag][0] = 0;
+  } else {
+    RCTLogInfo(@"Unbalanced calls start/end for tag %li", (unsigned long)tag);
+  }
+}
+
+NSArray<NSNumber *> *RCTPerformanceLoggerOutput(void)
+{
+  NSMutableArray *result = [NSMutableArray array];
+  for (NSUInteger index = 0; index < RCTPLSize; index++) {
+    [result addObject:@(RCTPLData[index][0])];
+    [result addObject:@(RCTPLData[index][1])];
+  }
+  return result;
+}
+
+NSArray *RCTPerformanceLoggerLabels(void)
+{
+  static NSArray *labels;
+  static dispatch_once_t token;
+  dispatch_once(&token, ^{
+    labels = @[
+      @"ScriptDownload",
+      @"ScriptExecution",
+      @"RAMBundleLoad",
+      @"RAMStartupCodeSize",
+      @"RAMNativeRequires",
+      @"RAMNativeRequiresCount",
+      @"RAMNativeRequiresSize",
+      @"NativeModuleInit",
+      @"NativeModuleMainThread",
+      @"NativeModulePrepareConfig",
+      @"NativeModuleInjectConfig",
+      @"NativeModuleMainThreadUsesCount",
+      @"JSCExecutorSetup",
+      @"BridgeStartup",
+      @"RootViewTTI",
+      @"BundleSize",
+    ];
+  });
+  return labels;
 }
 
 @interface RCTPerformanceLogger : NSObject <RCTBridgeModule>
@@ -46,15 +116,14 @@ RCT_EXPORT_MODULE()
 
 @synthesize bridge = _bridge;
 
-- (instancetype)init
+- (void)setBridge:(RCTBridge *)bridge
 {
-  if ((self = [super init])) {
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(sendTimespans)
-                                                 name:RCTContentDidAppearNotification
-                                               object:nil];
-  }
-  return self;
+  _bridge = bridge;
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(sendTimespans)
+                                               name:RCTContentDidAppearNotification
+                                             object:nil];
 }
 
 - (void)dealloc
@@ -64,13 +133,11 @@ RCT_EXPORT_MODULE()
 
 - (void)sendTimespans
 {
+  [[NSNotificationCenter defaultCenter] removeObserver:self];
+
   [_bridge enqueueJSCall:@"PerformanceLogger.addTimespans" args:@[
     RCTPerformanceLoggerOutput(),
-    @[
-      @"ScriptDownload",
-      @"ScriptExecution",
-      @"TTI",
-    ],
+    RCTPerformanceLoggerLabels(),
   ]];
 }
 

@@ -16,15 +16,15 @@
  */
 'use strict';
 
-var React = require('react-native');
+var React = require('react');
+var ReactNative = require('react-native');
 var {
   AppRegistry,
-  Image,
   StyleSheet,
   Text,
   TouchableHighlight,
   View,
-} = React;
+} = ReactNative;
 
 class Board {
   grid: Array<Array<number>>;
@@ -90,7 +90,6 @@ class Board {
         }
       }
     }
-
     return this.winner() === null;
   }
 }
@@ -118,34 +117,12 @@ var Cell = React.createClass({
     }
   },
 
-  imageStyle() {
-    switch (this.props.player) {
-      case 1:
-        return styles.imageX;
-      case 2:
-        return styles.imageO;
-      default:
-        return {};
-    }
-  },
-
   textContents() {
     switch (this.props.player) {
       case 1:
         return 'X';
       case 2:
         return 'O';
-      default:
-        return '';
-    }
-  },
-
-  imageContents() {
-    switch (this.props.player) {
-      case 1:
-        return 'http://www.picgifs.com/alphabets/alphabets/children-5/alphabets-children-5-277623.gif';
-      case 2:
-        return 'http://www.picgifs.com/alphabets/alphabets/children-5/alphabets-children-5-730492.gif';
       default:
         return '';
     }
@@ -158,7 +135,9 @@ var Cell = React.createClass({
         underlayColor="transparent"
         activeOpacity={0.5}>
         <View style={[styles.cell, this.cellStyle()]}>
-          <Image source={{uri: this.imageContents()}} style={this.imageStyle()}/>
+          <Text style={[styles.cellText, this.textStyle()]}>
+            {this.textContents()}
+          </Text>
         </View>
       </TouchableHighlight>
     );
@@ -293,7 +272,6 @@ var styles = StyleSheet.create({
   // CELL TEXT
 
   cellText: {
-    borderRadius: 5,
     fontSize: 50,
     fontFamily: 'AvenirNext-Bold',
   },
@@ -302,17 +280,6 @@ var styles = StyleSheet.create({
   },
   cellTextO: {
     color: '#b9dc2f',
-  },
-
-  // CELL IMAGE
-
-  imageX: {
-    width: 34,
-    height: 42,
-  },
-  imageO: {
-    width: 45,
-    height: 41,
   },
 
   // GAME OVER
@@ -338,7 +305,7 @@ var styles = StyleSheet.create({
     textAlign: 'center',
   },
   newGame: {
-    backgroundColor: '#887766',
+    backgroundColor: '#887765',
     padding: 20,
     borderRadius: 5,
   },

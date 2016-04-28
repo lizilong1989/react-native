@@ -10,35 +10,50 @@ var NativeModules = {
     }),
   },
   Timing: {
-    createTimer: jest.genMockFunction(),
-    deleteTimer: jest.genMockFunction(),
+    createTimer: jest.fn(),
+    deleteTimer: jest.fn(),
   },
   GraphPhotoUpload: {
-    upload: jest.genMockFunction(),
+    upload: jest.fn(),
   },
   FacebookSDK: {
-    login: jest.genMockFunction(),
-    logout: jest.genMockFunction(),
-    queryGraphPath: jest.genMockFunction().mockImpl(
-      (path, method, params, callback) => callback()
-    ),
+    login: jest.fn(),
+    logout: jest.fn(),
+    queryGraphPath: jest.fn((path, method, params, callback) => callback()),
   },
   DataManager: {
-    queryData: jest.genMockFunction(),
+    queryData: jest.fn(),
   },
   UIManager: {
     customBubblingEventTypes: {},
     customDirectEventTypes: {},
     Dimensions: {},
+    RCTModalFullscreenView: {
+      Constants: {},
+    },
+    RCTScrollView: {
+      Constants: {},
+    },
   },
   AsyncLocalStorage: {
-    getItem: jest.genMockFunction(),
-    setItem: jest.genMockFunction(),
-    removeItem: jest.genMockFunction(),
-    clear: jest.genMockFunction(),
+    getItem: jest.fn(),
+    setItem: jest.fn(),
+    removeItem: jest.fn(),
+    clear: jest.fn(),
   },
   SourceCode: {
     scriptURL: null,
+  },
+  BuildInfo: {
+    appVersion: '0',
+    buildVersion: '0',
+  },
+  ModalFullscreenViewManager: {},
+  AlertManager: {
+    alertWithArgs: jest.fn(),
+  },
+  Clipboard: {
+    setString: jest.fn(),
   },
 };
 

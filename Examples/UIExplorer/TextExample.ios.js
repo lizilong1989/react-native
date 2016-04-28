@@ -15,12 +15,14 @@
  */
 'use strict';
 
-var React = require('react-native');
+var React = require('react');
+var ReactNative = require('react-native');
 var {
+  Image,
   StyleSheet,
   Text,
   View,
-} = React;
+} = ReactNative;
 
 var Entity = React.createClass({
   render: function() {
@@ -153,19 +155,19 @@ exports.examples = [
   render: function() {
     return (
       <View>
-        <Text style={{fontWeight: '100'}}>
+        <Text style={{fontSize: 20, fontWeight: '100'}}>
           Move fast and be ultralight
         </Text>
-        <Text style={{fontWeight: '200'}}>
+        <Text style={{fontSize: 20, fontWeight: '200'}}>
           Move fast and be light
         </Text>
-        <Text style={{fontWeight: 'normal'}}>
+        <Text style={{fontSize: 20, fontWeight: 'normal'}}>
           Move fast and be normal
         </Text>
-        <Text style={{fontWeight: 'bold'}}>
+        <Text style={{fontSize: 20, fontWeight: 'bold'}}>
           Move fast and be bold
         </Text>
-        <Text style={{fontWeight: '900'}}>
+        <Text style={{fontSize: 20, fontWeight: '900'}}>
           Move fast and be ultrabold
         </Text>
       </View>
@@ -181,6 +183,44 @@ exports.examples = [
         </Text>
         <Text style={{fontStyle: 'italic'}}>
           Italic text
+        </Text>
+      </View>
+    );
+  },
+}, {
+  title: 'Text Decoration',
+  render: function() {
+    return (
+      <View>
+        <Text style={{textDecorationLine: 'underline', textDecorationStyle: 'solid'}}>
+          Solid underline
+        </Text>
+        <Text style={{textDecorationLine: 'underline', textDecorationStyle: 'double', textDecorationColor: '#ff0000'}}>
+          Double underline with custom color
+        </Text>
+        <Text style={{textDecorationLine: 'underline', textDecorationStyle: 'dashed', textDecorationColor: '#9CDC40'}}>
+          Dashed underline with custom color
+        </Text>
+        <Text style={{textDecorationLine: 'underline', textDecorationStyle: 'dotted', textDecorationColor: 'blue'}}>
+          Dotted underline with custom color
+        </Text>
+        <Text style={{textDecorationLine: 'none'}}>
+          None textDecoration
+        </Text>
+        <Text style={{textDecorationLine: 'line-through', textDecorationStyle: 'solid'}}>
+          Solid line-through
+        </Text>
+        <Text style={{textDecorationLine: 'line-through', textDecorationStyle: 'double', textDecorationColor: '#ff0000'}}>
+          Double line-through with custom color
+        </Text>
+        <Text style={{textDecorationLine: 'line-through', textDecorationStyle: 'dashed', textDecorationColor: '#9CDC40'}}>
+          Dashed line-through with custom color
+        </Text>
+        <Text style={{textDecorationLine: 'line-through', textDecorationStyle: 'dotted', textDecorationColor: 'blue'}}>
+          Dotted line-through with custom color
+        </Text>
+        <Text style={{textDecorationLine: 'underline line-through'}}>
+          Both underline and line-through
         </Text>
       </View>
     );
@@ -202,6 +242,21 @@ exports.examples = [
             </Text>
             )
           </Text>
+          )
+        </Text>
+        <Text style={{opacity:0.7}}>
+          (opacity
+            <Text>
+              (is inherited
+                <Text style={{opacity:0.7}}>
+                  (and accumulated
+                    <Text style={{backgroundColor:'#ffaaaa'}}>
+                      (and also applies to the background)
+                    </Text>
+                  )
+                </Text>
+              )
+            </Text>
           )
         </Text>
         <Text style={{fontSize: 12}}>
@@ -231,7 +286,7 @@ exports.examples = [
           right right right right right right right right right right right right right
         </Text>
         <Text style={{textAlign: 'justify'}}>
-          justify: this text component's contents are laid out with "textAlign: justify"
+          justify: this text component{"'"}s contents are laid out with "textAlign: justify"
           and as you can see all of the lines except the last one span the
           available width of the parent container.
         </Text>
@@ -327,6 +382,56 @@ exports.examples = [
         </Text>
         <Text style={{marginTop: 20}}>
           No maximum lines specified, no matter how much I write here. If I keep writing, it{"'"}ll just keep going and going.
+        </Text>
+      </View>
+    );
+  },
+}, {
+  title: 'Text highlighting (tap the link to see highlight)',
+  render: function() {
+    return (
+      <View>
+        <Text>Lorem ipsum dolor sit amet, <Text suppressHighlighting={false} style={{backgroundColor: 'white', textDecorationLine: 'underline', color: 'blue'}} onPress={() => null}>consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud</Text> exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</Text>
+      </View>
+    );
+  },
+}, {
+  title: 'allowFontScaling attribute',
+  render: function() {
+    return (
+      <View>
+        <Text>
+          By default, text will respect Text Size accessibility setting on iOS.
+          It means that all font sizes will be increased or descreased depending on the value of Text Size setting in
+          {" "}<Text style={{fontWeight: 'bold'}}>Settings.app - Display & Brightness - Text Size</Text>
+        </Text>
+        <Text style={{marginTop: 10}}>
+          You can disable scaling for your Text component by passing {"\""}allowFontScaling={"{"}false{"}\""} prop.
+        </Text>
+        <Text allowFontScaling={false} style={{marginTop: 20}}>
+          This text will not scale.
+        </Text>
+      </View>
+    );
+  },
+}, {
+  title: 'Inline images',
+  render: function() {
+    return (
+      <View>
+        <Text>
+          This text contains an inline image <Image source={require('./flux.png')} style={{width: 30, height: 11, resizeMode: 'cover'}}/>. Neat, huh?
+        </Text>
+      </View>
+    );
+  },
+}, {
+  title: 'Text shadow',
+  render: function() {
+    return (
+      <View>
+        <Text style={{fontSize: 20, textShadowOffset: {width: 2, height: 2}, textShadowRadius: 1, textShadowColor: '#00cccc'}}>
+          Demo text shadow
         </Text>
       </View>
     );

@@ -44,19 +44,20 @@
 @property (nonatomic, assign) BOOL automaticallyAdjustContentInsets;
 @property (nonatomic, assign) NSTimeInterval scrollEventThrottle;
 @property (nonatomic, assign) BOOL centerContent;
+@property (nonatomic, assign) int snapToInterval;
+@property (nonatomic, copy) NSString *snapToAlignment;
 @property (nonatomic, copy) NSIndexSet *stickyHeaderIndices;
+@property (nonatomic, copy) RCTDirectEventBlock onRefreshStart;
+
+- (void)endRefreshing;
 
 @end
 
 @interface RCTEventDispatcher (RCTScrollView)
 
 /**
- * Send a scroll event.
- * (You can send a fake scroll event by passing nil for scrollView).
+ * Send a fake scroll event.
  */
-- (void)sendScrollEventWithType:(RCTScrollEventType)type
-                       reactTag:(NSNumber *)reactTag
-                     scrollView:(UIScrollView *)scrollView
-                       userData:(NSDictionary *)userData;
+- (void)sendFakeScrollEvent:(NSNumber *)reactTag;
 
 @end
